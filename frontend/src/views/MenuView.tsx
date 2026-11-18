@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react'
-import { getCurrentMenu, getMasterMenu, addToWorkingMenu, removeFromWorkingMenu, removeMasterFromCurrentMenu, applyOffer, applyOfferToMaster, removeOffer, resetOffers, resetWorkingMenu, createMasterMenuItem } from '../api'
-import type { CurrentMenuItemResponse, WorkingMenuItemRequest, OfferRequest, MenuItemRequest } from '../api'
+import { getCurrentMenu, getMasterMenu, addToWorkingMenu, removeFromWorkingMenu, removeMasterFromCurrentMenu, applyOffer, applyOfferToMaster, removeOffer, resetOffers, resetWorkingMenu, createMasterMenuItem, updateMasterMenuItem, deleteMasterMenuItem } from '../api'
+import type { CurrentMenuItemResponse, WorkingMenuItemRequest, OfferRequest, MenuItemRequest, MenuItemResponse } from '../api'
 
 export function MenuView() {
   const [menu, setMenu] = useState<CurrentMenuItemResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [showAddMasterModal, setShowAddMasterModal] = useState(false)
+  const [showMasterManager, setShowMasterManager] = useState(false)
+  const [masterManagerMode, setMasterManagerMode] = useState<'choose' | 'add' | 'remove' | 'edit'>('choose')
+  const [masterItems, setMasterItems] = useState<MenuItemResponse[]>([])
+  const [selectedMasterItemId, setSelectedMasterItemId] = useState<number | null>(null)
   const [offerItem, setOfferItem] = useState<CurrentMenuItemResponse | null>(null)
   const [showMasterOnly, setShowMasterOnly] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<'ALL' | 'VEG' | 'NON_VEG'>('ALL')
@@ -28,6 +31,14 @@ export function MenuView() {
     name: '',
     priceFull: 0,
     priceHalf: 0
+  })
+  const [editingMasterItem, setEditingMasterItem] = useState<MenuItemRequest>({
+    category: 'VEG',
+    subcategory: '',
+    name: '',
+    priceFull: 0,
+    priceHalf: 0,
+    active: true
   })
 
   const [offerData, setOfferData] = useState<OfferRequest>({
@@ -67,6 +78,63 @@ export function MenuView() {
     }
   }
 
+  const openMasterManager = async () => {
+    try {
+      setError(null)
+      const response = await getMasterMenu(0, 1000)
+      setMasterItems(response.content)
+      setMasterManagerMode('choose')
+      setSelectedMasterItemId(null)
+      setShowMasterManager(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load master menu')
+    }
+  }
+
+  const refreshMasterItems = async () => {
+    const response = await getMasterMenu(0, 1000)
+    setMasterItems(response.content)
+  }
+
+  const selectMasterManagerMode = (mode: 'add' | 'remove' | 'edit') => {
+    setMasterManagerMode(mode)
+    setSelectedMasterItemId(null)
+    setSearchTerm('')
+    setSelectedCategory('ALL')
+    setSelectedSubcategory('ALL')
+    if (mode === 'add') {
+      setNewMasterItem({ category: 'VEG', subcategory: '', name: '', priceFull: 0, priceHalf: 0 })
+    }
+  }
+
+  const handleUpdateMasterItem = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (selectedMasterItemId === null) return
+    try {
+      await updateMasterMenuItem(selectedMasterItemId, editingMasterItem)
+      await refreshMasterItems()
+      await loadMenu()
+      setMasterManagerMode('choose')
+      setSelectedMasterItemId(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update master menu item')
+    }
+  }
+
+  const handleDeleteMasterItem = async () => {
+    if (selectedMasterItemId === null) return
+    const item = masterItems.find(candidate => candidate.id === selectedMasterItemId)
+    if (!item || !window.confirm(`Remove ${item.name} from the master menu?`)) return
+    try {
+      await deleteMasterMenuItem(selectedMasterItemId)
+      await refreshMasterItems()
+      await loadMenu()
+      setSelectedMasterItemId(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to remove master menu item')
+    }
+  }
+
   const handleToggleMenuView = () => {
     const masterOnly = !showMasterOnly
     setShowMasterOnly(masterOnly)
@@ -89,9 +157,10 @@ export function MenuView() {
     e.preventDefault()
     try {
       await createMasterMenuItem(newMasterItem)
-      setShowAddMasterModal(false)
+      await refreshMasterItems()
       setNewMasterItem({ category: 'VEG', subcategory: '', name: '', priceFull: 0, priceHalf: 0 })
-      loadMenu()
+      await loadMenu()
+      setMasterManagerMode('choose')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add master item')
     }
@@ -173,6 +242,24 @@ export function MenuView() {
       item.subcategory?.toLowerCase().includes(normalizedSearch) ||
       item.category.toLowerCase().includes(normalizedSearch))
   )
+  const masterCategories = Array.from(new Set(masterItems.map(item => item.category)))
+  const masterSubcategoryOptions = Array.from(new Set([
+    ...masterItems.map(item => item.subcategory).filter((subcategory): subcategory is string => Boolean(subcategory)),
+    editingMasterItem.subcategory || '',
+    newMasterItem.subcategory || '',
+    'special'
+  ].filter(Boolean)))
+  const masterSubcategories = Array.from(new Set([...masterSubcategoryOptions, ...masterItems
+    .filter(item => selectedCategory === 'ALL' || item.category === selectedCategory)
+    .map(item => item.subcategory)
+    .filter((subcategory): subcategory is string => Boolean(subcategory))]))
+  const filteredMasterItems = masterItems.filter(item =>
+    (selectedCategory === 'ALL' || item.category === selectedCategory) &&
+    (selectedSubcategory === 'ALL' || item.subcategory === selectedSubcategory) &&
+    (!normalizedSearch || item.name.toLowerCase().includes(normalizedSearch) ||
+      item.subcategory?.toLowerCase().includes(normalizedSearch) ||
+      item.category.toLowerCase().includes(normalizedSearch))
+  )
 
   if (loading) return <div className="loading">Loading menu...</div>
 
@@ -184,7 +271,7 @@ export function MenuView() {
           <button onClick={handleToggleMenuView} className={showMasterOnly ? 'active' : ''}>
             {showMasterOnly ? 'Show Current Menu' : 'Show Master Menu Only'}
           </button>
-          <button onClick={() => setShowAddMasterModal(true)}>Add to Master Menu</button>
+          <button onClick={openMasterManager}>Edit Master Menu</button>
           <button onClick={() => setShowAddModal(true)}>Add to Working Menu</button>
           <button onClick={handleResetOffers} className="secondary">Reset Offers</button>
           <button onClick={handleResetWorking} className="danger">Reset Working Menu</button>
@@ -309,39 +396,143 @@ export function MenuView() {
         </div>
       )}
 
-      {showAddMasterModal && (
-        <div className="modal-overlay" onClick={() => setShowAddMasterModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>Add to Master Menu</h2>
-            <form onSubmit={handleAddMasterItem}>
-              <div className="form-group">
-                <label>Category</label>
-                <select value={newMasterItem.category} onChange={e => setNewMasterItem({...newMasterItem, category: e.target.value as 'VEG' | 'NON_VEG'})}>
-                  <option value="VEG">VEG</option>
-                  <option value="NON_VEG">NON_VEG</option>
-                </select>
+      {showMasterManager && (
+        <div className="modal-overlay" onClick={() => setShowMasterManager(false)}>
+          <div className="modal large" onClick={e => e.stopPropagation()}>
+            <h2>Edit Master Menu</h2>
+            {error && <div className="error">{error}</div>}
+            {masterManagerMode === 'choose' ? (
+              <div className="actions">
+                <button onClick={() => selectMasterManagerMode('add')}>Add</button>
+                <button onClick={() => selectMasterManagerMode('remove')}>Remove</button>
+                <button onClick={() => selectMasterManagerMode('edit')}>Edit</button>
+                <button className="secondary" onClick={() => setShowMasterManager(false)}>Close</button>
               </div>
-              <div className="form-group">
-                <label>Subcategory</label>
-                <input type="text" value={newMasterItem.subcategory || ''} onChange={e => setNewMasterItem({...newMasterItem, subcategory: e.target.value})} placeholder="Optional" />
-              </div>
-              <div className="form-group">
-                <label>Name</label>
-                <input type="text" value={newMasterItem.name} onChange={e => setNewMasterItem({...newMasterItem, name: e.target.value})} required />
-              </div>
-              <div className="form-group">
-                <label>Full Price</label>
-                <input type="number" step="0.01" value={newMasterItem.priceFull} onChange={e => setNewMasterItem({...newMasterItem, priceFull: parseFloat(e.target.value)})} required />
-              </div>
-              <div className="form-group">
-                <label>Half Price</label>
-                <input type="number" step="0.01" value={newMasterItem.priceHalf || 0} onChange={e => setNewMasterItem({...newMasterItem, priceHalf: parseFloat(e.target.value) || 0})} placeholder="Optional" />
-              </div>
-              <div className="modal-actions">
-                <button type="button" onClick={() => setShowAddMasterModal(false)}>Cancel</button>
-                <button type="submit">Add</button>
-              </div>
-            </form>
+            ) : (
+              <>
+                <button className="secondary" onClick={() => setMasterManagerMode('choose')}>Back to options</button>
+                {masterManagerMode !== 'add' && (
+                  <>
+                    <div className="menu-filters">
+                      <label>
+                        Category
+                        <select value={selectedCategory} onChange={e => {
+                          setSelectedCategory(e.target.value as 'ALL' | 'VEG' | 'NON_VEG')
+                          setSelectedSubcategory('ALL')
+                        }}>
+                          <option value="ALL">All categories</option>
+                          {masterCategories.map(category => <option key={category} value={category}>{category}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        Subcategory
+                        <select value={selectedSubcategory} onChange={e => setSelectedSubcategory(e.target.value)}>
+                          <option value="ALL">All subcategories</option>
+                          {masterSubcategories.map(subcategory => <option key={subcategory} value={subcategory}>{subcategory}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        Search master menu
+                        <input type="search" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search dish, category, or subcategory" list="master-menu-suggestions" />
+                        <datalist id="master-menu-suggestions">
+                          {masterItems.map(item => <option key={item.id} value={item.name} />)}
+                        </datalist>
+                      </label>
+                    </div>
+                    <div className="form-group">
+                      <label>Select master menu item</label>
+                      <select value={selectedMasterItemId ?? ''} onChange={e => {
+                        const id = e.target.value ? Number(e.target.value) : null
+                        setSelectedMasterItemId(id)
+                        const item = masterItems.find(candidate => candidate.id === id)
+                        if (item) setEditingMasterItem({
+                          category: item.category,
+                          subcategory: item.subcategory || '',
+                          name: item.name,
+                          priceFull: item.priceFull,
+                          priceHalf: item.priceHalf,
+                          active: item.active
+                        })
+                      }}>
+                        <option value="">Choose an item</option>
+                        {filteredMasterItems.map(item => <option key={item.id} value={item.id}>{item.category} · {item.subcategory || 'No subcategory'} · {item.name}</option>)}
+                      </select>
+                    </div>
+                    {masterManagerMode === 'remove' && (
+                      <div className="modal-actions">
+                        <button type="button" className="danger" onClick={handleDeleteMasterItem} disabled={selectedMasterItemId === null}>Remove selected item</button>
+                      </div>
+                    )}
+                  </>
+                )}
+                {masterManagerMode === 'add' && (
+                  <form onSubmit={handleAddMasterItem}>
+                    <div className="form-group">
+                      <label>Category</label>
+                      <select value={newMasterItem.category} onChange={e => setNewMasterItem({...newMasterItem, category: e.target.value as 'VEG' | 'NON_VEG'})}>
+                        <option value="VEG">VEG</option>
+                        <option value="NON_VEG">NON_VEG</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Subcategory</label>
+                      <select value={newMasterItem.subcategory || ''} onChange={e => setNewMasterItem({...newMasterItem, subcategory: e.target.value})}>
+                        <option value="">No subcategory</option>
+                        {masterSubcategoryOptions.map(subcategory => <option key={subcategory} value={subcategory}>{subcategory}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Name</label>
+                      <input type="text" value={newMasterItem.name} onChange={e => setNewMasterItem({...newMasterItem, name: e.target.value})} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Full Price</label>
+                      <input type="number" step="0.01" min="0" value={newMasterItem.priceFull} onChange={e => setNewMasterItem({...newMasterItem, priceFull: parseFloat(e.target.value) || 0})} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Half Price</label>
+                      <input type="number" step="0.01" min="0" value={newMasterItem.priceHalf ?? ''} onChange={e => setNewMasterItem({...newMasterItem, priceHalf: e.target.value ? parseFloat(e.target.value) : null})} placeholder="Optional" />
+                    </div>
+                    <div className="modal-actions">
+                      <button type="submit">Add to master menu</button>
+                    </div>
+                  </form>
+                )}
+                {masterManagerMode === 'edit' && selectedMasterItemId !== null && (
+                  <form onSubmit={handleUpdateMasterItem}>
+                    <div className="form-group">
+                      <label>Category</label>
+                      <select value={editingMasterItem.category} onChange={e => setEditingMasterItem({...editingMasterItem, category: e.target.value as 'VEG' | 'NON_VEG'})}>
+                        <option value="VEG">VEG</option>
+                        <option value="NON_VEG">NON_VEG</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Subcategory</label>
+                      <select value={editingMasterItem.subcategory || ''} onChange={e => setEditingMasterItem({...editingMasterItem, subcategory: e.target.value})}>
+                        <option value="">No subcategory</option>
+                        {masterSubcategoryOptions.map(subcategory => <option key={subcategory} value={subcategory}>{subcategory}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Name</label>
+                      <input type="text" value={editingMasterItem.name} onChange={e => setEditingMasterItem({...editingMasterItem, name: e.target.value})} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Full Price</label>
+                      <input type="number" step="0.01" min="0" value={editingMasterItem.priceFull} onChange={e => setEditingMasterItem({...editingMasterItem, priceFull: parseFloat(e.target.value) || 0})} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Half Price</label>
+                      <input type="number" step="0.01" min="0" value={editingMasterItem.priceHalf ?? ''} onChange={e => setEditingMasterItem({...editingMasterItem, priceHalf: e.target.value ? parseFloat(e.target.value) : null})} placeholder="Optional" />
+                    </div>
+                    <div className="modal-actions">
+                      <button type="submit">Save changes</button>
+                    </div>
+                  </form>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
