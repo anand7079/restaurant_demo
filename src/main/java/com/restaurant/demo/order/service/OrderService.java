@@ -40,7 +40,7 @@ public class OrderService {
         Order order = new Order();
         order.setCustomerName(request.getCustomerName());
         order.setCustomerPhone(request.getCustomerPhone());
-        order.setStatus(OrderStatus.PENDING);
+        order.setStatus(OrderStatus.IN_QUEUE);
 
         List<OrderItem> orderItems = new ArrayList<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -65,16 +65,22 @@ public class OrderService {
         Integer quantity = itemRequest.getQuantity();
         Boolean useOffer = itemRequest.getUseOffer() != null && itemRequest.getUseOffer();
 
-        WorkingMenuItem workingItem = workingMenuItemRepository.findById(menuItemId).orElse(null);
-        
-        // If no working item, try to find master item
+        WorkingMenuItem workingItem = null;
         MenuItem masterItem = null;
-        if (workingItem == null) {
+        String menuItemSource = itemRequest.getMenuItemSource();
+        if ("MASTER".equalsIgnoreCase(menuItemSource)) {
             masterItem = menuItemRepository.findById(menuItemId)
                     .orElseThrow(() -> new IllegalArgumentException("Menu item not found: " + menuItemId));
-        } else if (!workingItem.getIsOverride()) {
-            // Working item is a copy of master, try to find master for reference
-            masterItem = menuItemRepository.findById(menuItemId).orElse(null);
+        } else if ("WORKING".equalsIgnoreCase(menuItemSource)) {
+            workingItem = workingMenuItemRepository.findById(menuItemId)
+                    .orElseThrow(() -> new IllegalArgumentException("Working menu item not found: " + menuItemId));
+        } else {
+            // Keep compatibility with older order clients that do not send the item source.
+            workingItem = workingMenuItemRepository.findById(menuItemId).orElse(null);
+            if (workingItem == null) {
+                masterItem = menuItemRepository.findById(menuItemId)
+                        .orElseThrow(() -> new IllegalArgumentException("Menu item not found: " + menuItemId));
+            }
         }
 
         OrderItem orderItem = new OrderItem();
@@ -98,7 +104,7 @@ public class OrderService {
         Boolean offerApplied = false;
         String offerLabel = null;
 
-        if (useOffer && workingItem != null && workingItem.getOfferPriceFull() != null) {
+        if (useOffer && workingItem != null) {
             if (portion == Portion.FULL && workingItem.getOfferPriceFull() != null) {
                 unitPrice = workingItem.getOfferPriceFull();
                 offerApplied = true;

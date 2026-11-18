@@ -28,6 +28,8 @@ public class OrderRequest {
         @NotNull
         private Long menuItemId;
 
+        private String menuItemSource;
+
         @NotNull
         private Portion portion;
 

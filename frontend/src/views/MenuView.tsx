@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getCurrentMenu, getMasterMenu, addToWorkingMenu, removeFromWorkingMenu, removeMasterFromCurrentMenu, applyOffer, applyOfferToMaster, removeOffer, resetOffers, resetWorkingMenu, createMasterMenuItem, updateMasterMenuItem, deleteMasterMenuItem } from '../api'
-import type { CurrentMenuItemResponse, WorkingMenuItemRequest, OfferRequest, MenuItemRequest, MenuItemResponse } from '../api'
+import { getCurrentMenu, getMasterMenu, addToWorkingMenu, removeFromWorkingMenu, removeMasterFromCurrentMenu, applyOffer, applyOfferToMaster, removeOffer, resetOffers, resetWorkingMenu, createMasterMenuItem, updateMasterMenuItem, deleteMasterMenuItem, placeOrder } from '../api'
+import type { CurrentMenuItemResponse, WorkingMenuItemRequest, OfferRequest, MenuItemRequest, MenuItemResponse, OrderItemRequest, OrderRequest, Portion } from '../api'
 
 export function MenuView() {
   const [menu, setMenu] = useState<CurrentMenuItemResponse[]>([])
@@ -16,6 +16,12 @@ export function MenuView() {
   const [selectedCategory, setSelectedCategory] = useState<'ALL' | 'VEG' | 'NON_VEG'>('ALL')
   const [selectedSubcategory, setSelectedSubcategory] = useState('ALL')
   const [searchTerm, setSearchTerm] = useState('')
+  const [cart, setCart] = useState<OrderItemRequest[]>([])
+  const [showCart, setShowCart] = useState(false)
+  const [cartAddItem, setCartAddItem] = useState<CurrentMenuItemResponse | null>(null)
+  const [cartAddPortion, setCartAddPortion] = useState<Portion>('FULL')
+  const [cartCustomerName, setCartCustomerName] = useState('')
+  const [cartCustomerPhone, setCartCustomerPhone] = useState('')
 
   const [newItem, setNewItem] = useState<WorkingMenuItemRequest>({
     category: 'VEG',
@@ -220,6 +226,44 @@ export function MenuView() {
     }
   }
 
+  const handleAddToCart = (item: CurrentMenuItemResponse, portion: Portion) => {
+    const offerPrice = portion === 'FULL' ? item.offerPriceFull : item.offerPriceHalf
+    setCart(currentCart => {
+      const existing = currentCart.find(cartItem => cartItem.menuItemId === item.id && cartItem.menuItemSource === item.source && cartItem.portion === portion)
+      if (existing) {
+        return currentCart.map(cartItem => cartItem.menuItemId === item.id && cartItem.menuItemSource === item.source && cartItem.portion === portion
+          ? { ...cartItem, quantity: cartItem.quantity + 1 }
+          : cartItem)
+      }
+      return [...currentCart, { menuItemId: item.id, menuItemSource: item.source, portion, quantity: 1, useOffer: offerPrice !== null }]
+    })
+    setCartAddItem(null)
+  }
+
+  const handlePlaceCartOrder = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (cart.length === 0) return
+    try {
+      const request: OrderRequest = {
+        customerName: cartCustomerName || null,
+        customerPhone: cartCustomerPhone || null,
+        items: cart.map(line => {
+          const menuItem = menu.find(item => item.id === line.menuItemId && item.source === line.menuItemSource)
+          const offerPrice = line.portion === 'FULL' ? menuItem?.offerPriceFull : menuItem?.offerPriceHalf
+          return { ...line, useOffer: offerPrice !== null && offerPrice !== undefined }
+        })
+      }
+      const order = await placeOrder(request)
+      setCart([])
+      setCartCustomerName('')
+      setCartCustomerPhone('')
+      setShowCart(false)
+      window.alert(`Order #${order.id} placed successfully. It is now available in Orders.`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to place order')
+    }
+  }
+
   const handleResetWorking = async () => {
     if (!window.confirm('Reset working menu? This will discard all overrides and offers.')) return
     try {
@@ -246,6 +290,7 @@ export function MenuView() {
       item.subcategory?.toLowerCase().includes(normalizedSearch) ||
       item.category.toLowerCase().includes(normalizedSearch))
   )
+  const cartItemCount = cart.reduce((count, item) => count + item.quantity, 0)
   const masterCategories = Array.from(new Set(masterItems.map(item => item.category)))
   const masterSubcategoryOptions = Array.from(new Set([
     ...masterItems.map(item => item.subcategory).filter((subcategory): subcategory is string => Boolean(subcategory)),
@@ -275,6 +320,7 @@ export function MenuView() {
           <button onClick={handleToggleMenuView} className={showMasterOnly ? 'active' : ''}>
             {showMasterOnly ? 'Show Current Menu' : 'Show Master Menu Only'}
           </button>
+          {!showMasterOnly && <button onClick={() => setShowCart(true)}>Cart ({cartItemCount})</button>}
           <button onClick={openMasterManager}>Edit Master Menu</button>
           <button onClick={() => setShowAddModal(true)}>Add to Working Menu</button>
           <button onClick={handleResetOffers} className="secondary">Reset Offers</button>
@@ -334,7 +380,7 @@ export function MenuView() {
         </thead>
         <tbody>
           {filteredMenu.map(item => (
-            <tr key={item.id}>
+            <tr key={`${item.source}-${item.id}`}>
               <td>{item.category}</td>
               <td>{item.subcategory || '—'}</td>
               <td>{item.name}</td>
@@ -347,6 +393,7 @@ export function MenuView() {
               <td className="actions-cell">
                 {!showMasterOnly && (
                   <>
+                    <button onClick={() => { setCartAddItem(item); setCartAddPortion('FULL') }} className="small">Add to Cart</button>
                     <button onClick={() => { setOfferItem(item); setOfferData({ itemId: item.id, offerPriceFull: item.offerPriceFull, offerPriceHalf: item.offerPriceHalf, offerLabel: item.offerLabel || '' }) }} className="small">Offer</button>
                     {(item.offerPriceFull !== null || item.offerPriceHalf !== null || item.offerLabel) && (
                       <button onClick={() => handleRemoveOffer(item.id)} className="small secondary">Remove Offer</button>
@@ -537,6 +584,100 @@ export function MenuView() {
                 )}
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {showCart && (
+        <div className="modal-overlay" onClick={() => setShowCart(false)}>
+          <div className="modal large" onClick={e => e.stopPropagation()}>
+            <h2>Cart ({cartItemCount} items)</h2>
+            {error && <div className="error">{error}</div>}
+            {cart.length === 0 ? (
+              <p>Your cart is empty.</p>
+            ) : (
+              <form onSubmit={handlePlaceCartOrder}>
+                <div className="order-items-form">
+                  {cart.map((cartItem, index) => {
+                    const menuItem = menu.find(item => item.id === cartItem.menuItemId && item.source === cartItem.menuItemSource)
+                    if (!menuItem) return null
+                    const offerPrice = cartItem.portion === 'FULL' ? menuItem.offerPriceFull : menuItem.offerPriceHalf
+                    const regularPrice = cartItem.portion === 'FULL' ? menuItem.priceFull : menuItem.priceHalf
+                    const linePrice = (offerPrice !== null ? offerPrice : regularPrice || 0) * cartItem.quantity
+                    return (
+                      <div className="order-item-form" key={`${cartItem.menuItemSource}-${cartItem.menuItemId}`}>
+                        <div className="form-group">
+                          <label>Item</label>
+                          <strong>{menuItem.name}</strong>
+                          <div>{formatPrice(linePrice)}</div>
+                        </div>
+                        <div className="form-group">
+                          <label>Portion</label>
+                          <select value={cartItem.portion} onChange={e => {
+                            const portion = e.target.value as Portion
+                            const nextOfferPrice = portion === 'FULL' ? menuItem.offerPriceFull : menuItem.offerPriceHalf
+                            setCart(currentCart => currentCart.map((line, lineIndex) => lineIndex === index ? { ...line, portion, useOffer: nextOfferPrice !== null } : line))
+                          }}>
+                            <option value="FULL">Full</option>
+                            <option value="HALF" disabled={menuItem.priceHalf === null}>Half</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label>Quantity</label>
+                          <input type="number" min="1" value={cartItem.quantity} onChange={e => setCart(currentCart => currentCart.map((line, lineIndex) => lineIndex === index ? { ...line, quantity: Math.max(1, parseInt(e.target.value) || 1) } : line))} />
+                        </div>
+                        <div className="form-group">
+                          <label>Offer</label>
+                          {offerPrice !== null ? <span className="offer-tag">{menuItem.offerLabel || 'Offer applied'}</span> : <span>—</span>}
+                        </div>
+                        <button type="button" className="small danger" onClick={() => setCart(currentCart => currentCart.filter((_, lineIndex) => lineIndex !== index))}>Remove</button>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Customer Name</label>
+                    <input type="text" value={cartCustomerName} onChange={e => setCartCustomerName(e.target.value)} placeholder="Optional" />
+                  </div>
+                  <div className="form-group">
+                    <label>Customer Phone</label>
+                    <input type="text" value={cartCustomerPhone} onChange={e => setCartCustomerPhone(e.target.value)} placeholder="Optional" />
+                  </div>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="secondary" onClick={() => setShowCart(false)}>Continue shopping</button>
+                  <button type="submit" disabled={cart.length === 0}>Place Order</button>
+                </div>
+              </form>
+            )}
+            {cart.length === 0 && <div className="modal-actions"><button className="secondary" onClick={() => setShowCart(false)}>Continue shopping</button></div>}
+          </div>
+        </div>
+      )}
+
+      {cartAddItem && (
+        <div className="modal-overlay" onClick={() => setCartAddItem(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h2>Add {cartAddItem.name} to Cart</h2>
+            <div className="form-group">
+              <label>Portion</label>
+              <select value={cartAddPortion} onChange={e => setCartAddPortion(e.target.value as Portion)}>
+                <option value="FULL">Full</option>
+                <option value="HALF" disabled={cartAddItem.priceHalf === null}>Half</option>
+              </select>
+            </div>
+            <p>
+              Price: {formatPrice((cartAddPortion === 'FULL'
+                ? cartAddItem.offerPriceFull ?? cartAddItem.priceFull
+                : cartAddItem.offerPriceHalf ?? cartAddItem.priceHalf) || 0)}
+              {(cartAddPortion === 'FULL' ? cartAddItem.offerPriceFull : cartAddItem.offerPriceHalf) !== null &&
+                <span className="offer-tag">{cartAddItem.offerLabel || 'Offer applied'}</span>}
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="secondary" onClick={() => setCartAddItem(null)}>Cancel</button>
+              <button type="button" onClick={() => handleAddToCart(cartAddItem, cartAddPortion)}>Add to Cart</button>
+            </div>
           </div>
         </div>
       )}

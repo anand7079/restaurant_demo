@@ -1,6 +1,6 @@
 export type MenuCategory = 'VEG' | 'NON_VEG'
 export type Portion = 'FULL' | 'HALF'
-export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'DELIVERED' | 'CANCELLED'
+export type OrderStatus = 'IN_QUEUE' | 'ACCEPTED' | 'PREPARING' | 'PREPARED' | 'SERVED' | 'PENDING' | 'CONFIRMED' | 'READY' | 'DELIVERED' | 'CANCELLED'
 
 export type MenuItemResponse = {
   id: number
@@ -93,6 +93,7 @@ export type OrderResponse = {
 
 export type OrderItemRequest = {
   menuItemId: number
+  menuItemSource?: CurrentMenuItemResponse['source']
   portion: Portion
   quantity: number
   useOffer?: boolean
@@ -151,7 +152,10 @@ export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
-  patch: <T>(path: string) => request<T>(path, { method: 'PATCH' }),
+  patch: <T>(path: string, body?: unknown) => request<T>(path, {
+    method: 'PATCH',
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {})
+  }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 }
 
@@ -222,5 +226,5 @@ export async function getOrder(id: number): Promise<OrderResponse> {
 }
 
 export async function updateOrderStatus(id: number, status: OrderStatus): Promise<OrderResponse> {
-  return api.patch<OrderResponse>(`/orders/${id}/status?status=${status}`)
+  return api.patch<OrderResponse>(`/orders/${id}/status`, { status })
 }
