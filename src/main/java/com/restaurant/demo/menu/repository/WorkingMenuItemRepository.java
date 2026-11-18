@@ -16,4 +16,6 @@ public interface WorkingMenuItemRepository extends JpaRepository<WorkingMenuItem
     List<WorkingMenuItem> findByCategoryAndActiveTrueOrderByNameAsc(MenuCategory category);
 
     boolean existsByActiveTrue();
+
+    Optional<WorkingMenuItem> findByMasterItemId(Long masterItemId);
 }

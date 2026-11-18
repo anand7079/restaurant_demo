@@ -42,6 +42,11 @@ public class MenuController {
         return workingMenuService.applyOffer(request);
     }
 
+    @PostMapping("/offers/master/{masterItemId}")
+    public WorkingMenuItemResponse applyOfferToMaster(@PathVariable Long masterItemId, @Valid @RequestBody OfferRequest request) {
+        return workingMenuService.applyOfferToMaster(masterItemId, request);
+    }
+
     @DeleteMapping("/offers")
     public ResponseEntity<Void> resetOffers() {
         workingMenuService.resetOffers();

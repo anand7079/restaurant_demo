@@ -19,6 +19,9 @@ public class WorkingMenuItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "master_item_id")
+    private Long masterItemId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "category", nullable = false, length = 20)
     private MenuCategory category;

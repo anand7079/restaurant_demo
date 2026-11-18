@@ -31,16 +31,45 @@ public class WorkingMenuService {
     public List<CurrentMenuItemResponse> getCurrentMenu() {
         List<CurrentMenuItemResponse> result = new ArrayList<>();
 
-        if (workingMenuItemRepository.existsByActiveTrue()) {
-            List<WorkingMenuItem> workingItems = workingMenuItemRepository.findByActiveTrueOrderByCategoryAscNameAsc();
-            result.addAll(workingItems.stream()
-                    .map(currentMenuItemMapper::toResponseFromWorking)
-                    .toList());
-        } else {
-            List<MenuItem> masterItems = menuItemRepository.findByActiveTrueOrderByCategoryAscNameAsc();
-            result.addAll(masterItems.stream()
-                    .map(currentMenuItemMapper::toResponseFromMaster)
-                    .toList());
+        // Get all active master menu items
+        List<MenuItem> masterItems = menuItemRepository.findByActiveTrueOrderByCategoryAscNameAsc();
+
+        // Get all active working menu items
+        List<WorkingMenuItem> workingItems = workingMenuItemRepository.findByActiveTrueOrderByCategoryAscNameAsc();
+
+        // Create a map of working items by masterItemId for quick lookup
+        java.util.Map<Long, WorkingMenuItem> workingByMasterId = new java.util.HashMap<>();
+        List<WorkingMenuItem> customWorkingItems = new ArrayList<>();
+        for (WorkingMenuItem w : workingItems) {
+            if (w.getMasterItemId() != null) {
+                workingByMasterId.put(w.getMasterItemId(), w);
+            } else {
+                // Custom items without master reference
+                customWorkingItems.add(w);
+            }
+        }
+
+        // Add master items, replacing with working version if override exists
+        for (MenuItem master : masterItems) {
+            WorkingMenuItem working = workingByMasterId.get(master.getId());
+            if (working != null) {
+                // Working item overrides this master item
+                result.add(currentMenuItemMapper.toResponseFromWorking(working));
+                workingByMasterId.remove(master.getId()); // Remove from map so we don't add it again
+            } else {
+                // No override, show master
+                result.add(currentMenuItemMapper.toResponseFromMaster(master));
+            }
+        }
+
+        // Add remaining working items that don't have a matching master (custom additions)
+        for (WorkingMenuItem working : workingByMasterId.values()) {
+            result.add(currentMenuItemMapper.toResponseFromWorking(working));
+        }
+
+        // Add custom working items (no master reference)
+        for (WorkingMenuItem working : customWorkingItems) {
+            result.add(currentMenuItemMapper.toResponseFromWorking(working));
         }
 
         return result;
@@ -53,6 +82,7 @@ public class WorkingMenuService {
 
         WorkingMenuItem working = workingMenuItemMapper.toEntityFromMaster(master);
         working.setIsOverride(true);
+        working.setMasterItemId(master.getId());
         WorkingMenuItem saved = workingMenuItemRepository.save(working);
         return workingMenuItemMapper.toResponse(saved);
     }
@@ -79,6 +109,30 @@ public class WorkingMenuService {
                 .orElseThrow(() -> new IllegalArgumentException("Working menu item not found: " + request.getItemId()));
         workingMenuItemMapper.applyOffer(item, request.getOfferPriceFull(), request.getOfferPriceHalf(), request.getOfferLabel());
         WorkingMenuItem saved = workingMenuItemRepository.save(item);
+        return workingMenuItemMapper.toResponse(saved);
+    }
+
+    @Transactional
+    public WorkingMenuItemResponse applyOfferToMaster(Long masterItemId, OfferRequest request) {
+        MenuItem master = menuItemRepository.findById(masterItemId)
+                .orElseThrow(() -> new IllegalArgumentException("Master menu item not found: " + masterItemId));
+
+        // Check if working override already exists for this master item
+        WorkingMenuItem existing = workingMenuItemRepository.findByMasterItemId(masterItemId).orElse(null);
+
+        WorkingMenuItem working;
+        if (existing != null) {
+            working = existing;
+        } else {
+            // Create working copy from master
+            working = workingMenuItemMapper.toEntityFromMaster(master);
+            working.setIsOverride(true);
+            working.setMasterItemId(masterItemId);
+        }
+
+        // Apply offer
+        workingMenuItemMapper.applyOffer(working, request.getOfferPriceFull(), request.getOfferPriceHalf(), request.getOfferLabel());
+        WorkingMenuItem saved = workingMenuItemRepository.save(working);
         return workingMenuItemMapper.toResponse(saved);
     }
 
