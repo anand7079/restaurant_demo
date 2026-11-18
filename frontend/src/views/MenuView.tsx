@@ -114,6 +114,7 @@ export function MenuView() {
       await updateMasterMenuItem(selectedMasterItemId, editingMasterItem)
       await refreshMasterItems()
       await loadMenu()
+      window.alert(`Updated ${editingMasterItem.name} in the master menu.`)
       setMasterManagerMode('choose')
       setSelectedMasterItemId(null)
     } catch (e) {
@@ -129,6 +130,7 @@ export function MenuView() {
       await deleteMasterMenuItem(selectedMasterItemId)
       await refreshMasterItems()
       await loadMenu()
+      window.alert(`Removed ${item.name} from the master menu.`)
       setSelectedMasterItemId(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to remove master menu item')
@@ -157,9 +159,11 @@ export function MenuView() {
     e.preventDefault()
     try {
       await createMasterMenuItem(newMasterItem)
+      const addedItemName = newMasterItem.name
       await refreshMasterItems()
       setNewMasterItem({ category: 'VEG', subcategory: '', name: '', priceFull: 0, priceHalf: 0 })
       await loadMenu()
+      window.alert(`Added ${addedItemName} to the master menu.`)
       setMasterManagerMode('choose')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add master item')
