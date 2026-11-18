@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getCurrentMenu, getMasterMenu, addToWorkingMenu, removeFromWorkingMenu, applyOffer, resetOffers, resetWorkingMenu, createMasterMenuItem } from '../api'
+import { getCurrentMenu, getMasterMenu, addToWorkingMenu, removeFromWorkingMenu, removeMasterFromCurrentMenu, applyOffer, applyOfferToMaster, removeOffer, resetOffers, resetWorkingMenu, createMasterMenuItem } from '../api'
 import type { CurrentMenuItemResponse, WorkingMenuItemRequest, OfferRequest, MenuItemRequest } from '../api'
 
 export function MenuView() {
@@ -10,6 +10,9 @@ export function MenuView() {
   const [showAddMasterModal, setShowAddMasterModal] = useState(false)
   const [offerItem, setOfferItem] = useState<CurrentMenuItemResponse | null>(null)
   const [showMasterOnly, setShowMasterOnly] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<'ALL' | 'VEG' | 'NON_VEG'>('ALL')
+  const [selectedSubcategory, setSelectedSubcategory] = useState('ALL')
+  const [searchTerm, setSearchTerm] = useState('')
 
   const [newItem, setNewItem] = useState<WorkingMenuItemRequest>({
     category: 'VEG',
@@ -38,10 +41,10 @@ export function MenuView() {
     loadMenu()
   }, [])
 
-  const loadMenu = async () => {
+  const loadMenu = async (masterOnly = showMasterOnly) => {
     try {
       setLoading(true)
-      if (showMasterOnly) {
+      if (masterOnly) {
         const response = await getMasterMenu()
         const masterItems = response.content.map(item => ({
           ...item,
@@ -62,6 +65,12 @@ export function MenuView() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleToggleMenuView = () => {
+    const masterOnly = !showMasterOnly
+    setShowMasterOnly(masterOnly)
+    loadMenu(masterOnly)
   }
 
   const handleAddItem = async (e: React.FormEvent) => {
@@ -88,10 +97,14 @@ export function MenuView() {
     }
   }
 
-  const handleRemoveItem = async (id: number) => {
-    if (!window.confirm('Remove this item from working menu?')) return
+  const handleRemoveItem = async (item: CurrentMenuItemResponse) => {
+    if (!window.confirm('Remove this item from the current menu?')) return
     try {
-      await removeFromWorkingMenu(id)
+      if (item.source === 'MASTER') {
+        await removeMasterFromCurrentMenu(item.id)
+      } else {
+        await removeFromWorkingMenu(item.id)
+      }
       loadMenu()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to remove item')
@@ -102,7 +115,12 @@ export function MenuView() {
     e.preventDefault()
     if (!offerItem) return
     try {
-      await applyOffer({ ...offerData, itemId: offerItem.id })
+      const request = { ...offerData, itemId: offerItem.id }
+      if (offerItem.source === 'MASTER') {
+        await applyOfferToMaster(offerItem.id, request)
+      } else {
+        await applyOffer(request)
+      }
       setOfferItem(null)
       loadMenu()
     } catch (e) {
@@ -120,6 +138,15 @@ export function MenuView() {
     }
   }
 
+  const handleRemoveOffer = async (itemId: number) => {
+    try {
+      await removeOffer(itemId)
+      loadMenu()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to remove offer')
+    }
+  }
+
   const handleResetWorking = async () => {
     if (!window.confirm('Reset working menu? This will discard all overrides and offers.')) return
     try {
@@ -132,6 +159,21 @@ export function MenuView() {
 
   const formatPrice = (price: number | null) => price !== null ? `₹${price.toFixed(2)}` : '—'
 
+  const categories = Array.from(new Set(menu.map(item => item.category)))
+  const subcategories = Array.from(new Set(menu
+    .filter(item => selectedCategory === 'ALL' || item.category === selectedCategory)
+    .map(item => item.subcategory)
+    .filter((subcategory): subcategory is string => Boolean(subcategory))))
+  const searchSuggestions = Array.from(new Set(menu.map(item => item.name)))
+  const normalizedSearch = searchTerm.trim().toLowerCase()
+  const filteredMenu = menu.filter(item =>
+    (selectedCategory === 'ALL' || item.category === selectedCategory) &&
+    (selectedSubcategory === 'ALL' || item.subcategory === selectedSubcategory) &&
+    (!normalizedSearch || item.name.toLowerCase().includes(normalizedSearch) ||
+      item.subcategory?.toLowerCase().includes(normalizedSearch) ||
+      item.category.toLowerCase().includes(normalizedSearch))
+  )
+
   if (loading) return <div className="loading">Loading menu...</div>
 
   return (
@@ -139,7 +181,7 @@ export function MenuView() {
       <div className="header">
         <h1>{showMasterOnly ? 'Master Menu' : 'Current Menu'}</h1>
         <div className="actions">
-          <button onClick={() => setShowMasterOnly(!showMasterOnly)} className={showMasterOnly ? 'active' : ''}>
+          <button onClick={handleToggleMenuView} className={showMasterOnly ? 'active' : ''}>
             {showMasterOnly ? 'Show Current Menu' : 'Show Master Menu Only'}
           </button>
           <button onClick={() => setShowAddMasterModal(true)}>Add to Master Menu</button>
@@ -150,6 +192,39 @@ export function MenuView() {
       </div>
 
       {error && <div className="error">{error}</div>}
+
+      <div className="menu-filters">
+        <label>
+          Category
+          <select value={selectedCategory} onChange={e => {
+            setSelectedCategory(e.target.value as 'ALL' | 'VEG' | 'NON_VEG')
+            setSelectedSubcategory('ALL')
+          }}>
+            <option value="ALL">All categories</option>
+            {categories.map(category => <option key={category} value={category}>{category}</option>)}
+          </select>
+        </label>
+        <label>
+          Subcategory
+          <select value={selectedSubcategory} onChange={e => setSelectedSubcategory(e.target.value)}>
+            <option value="ALL">All subcategories</option>
+            {subcategories.map(subcategory => <option key={subcategory} value={subcategory}>{subcategory}</option>)}
+          </select>
+        </label>
+        <label>
+          Search menu
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            placeholder="Search dish, category, or subcategory"
+            list="current-menu-suggestions"
+          />
+          <datalist id="current-menu-suggestions">
+            {searchSuggestions.map(name => <option key={name} value={name} />)}
+          </datalist>
+        </label>
+      </div>
 
       <table className="menu-table">
         <thead>
@@ -167,7 +242,7 @@ export function MenuView() {
           </tr>
         </thead>
         <tbody>
-          {menu.map(item => (
+          {filteredMenu.map(item => (
             <tr key={item.id}>
               <td>{item.category}</td>
               <td>{item.subcategory || '—'}</td>
@@ -179,15 +254,21 @@ export function MenuView() {
               <td>{item.offerLabel || '—'}</td>
               <td><span className={`source-badge ${item.source.toLowerCase()}`}>{item.source}</span></td>
               <td className="actions-cell">
-                {item.source === 'WORKING' && (
+                {!showMasterOnly && (
                   <>
                     <button onClick={() => { setOfferItem(item); setOfferData({ itemId: item.id, offerPriceFull: item.offerPriceFull, offerPriceHalf: item.offerPriceHalf, offerLabel: item.offerLabel || '' }) }} className="small">Offer</button>
-                    <button onClick={() => handleRemoveItem(item.id)} className="small danger">Remove</button>
+                    {(item.offerPriceFull !== null || item.offerPriceHalf !== null || item.offerLabel) && (
+                      <button onClick={() => handleRemoveOffer(item.id)} className="small secondary">Remove Offer</button>
+                    )}
+                    <button onClick={() => handleRemoveItem(item)} className="small danger">Remove</button>
                   </>
                 )}
               </td>
             </tr>
           ))}
+          {filteredMenu.length === 0 && (
+            <tr><td colSpan={10}>No menu items match these filters.</td></tr>
+          )}
         </tbody>
       </table>
 

@@ -622,6 +622,7 @@ The backend starts on `http://localhost:8080`. Flyway executes migrations automa
 cd frontend
 npm install
 npm run dev
+npm run build (to check build)
 ```
 
 The frontend starts on `http://localhost:5173`.

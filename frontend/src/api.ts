@@ -183,8 +183,20 @@ export async function removeFromWorkingMenu(id: number): Promise<void> {
   return api.delete(`/menu/current/working/${id}`)
 }
 
+export async function removeMasterFromCurrentMenu(masterItemId: number): Promise<void> {
+  return api.delete(`/menu/current/working/master/${masterItemId}`)
+}
+
 export async function applyOffer(body: OfferRequest): Promise<WorkingMenuItemResponse> {
   return api.post<WorkingMenuItemResponse>('/menu/current/offers', body)
+}
+
+export async function applyOfferToMaster(masterItemId: number, body: OfferRequest): Promise<WorkingMenuItemResponse> {
+  return api.post<WorkingMenuItemResponse>(`/menu/current/offers/master/${masterItemId}`, body)
+}
+
+export async function removeOffer(itemId: number): Promise<void> {
+  return api.delete(`/menu/current/offers/${itemId}`)
 }
 
 export async function resetOffers(): Promise<void> {

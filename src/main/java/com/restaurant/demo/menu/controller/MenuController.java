@@ -37,9 +37,21 @@ public class MenuController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/working/master/{masterItemId}")
+    public ResponseEntity<Void> removeMasterFromCurrentMenu(@PathVariable Long masterItemId) {
+        workingMenuService.removeMasterFromCurrentMenu(masterItemId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/offers")
     public WorkingMenuItemResponse applyOffer(@Valid @RequestBody OfferRequest request) {
         return workingMenuService.applyOffer(request);
+    }
+
+    @DeleteMapping("/offers/{itemId}")
+    public ResponseEntity<Void> removeOffer(@PathVariable Long itemId) {
+        workingMenuService.removeOffer(itemId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/offers/master/{masterItemId}")
