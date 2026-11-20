@@ -97,6 +97,17 @@ export function MenuView() {
     }
   }
 
+  const openAddWorkingMenuModal = async () => {
+    try {
+      setError(null)
+      const response = await getMasterMenu(0, 1000)
+      setMasterItems(response.content)
+      setShowAddModal(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load subcategories')
+    }
+  }
+
   const refreshMasterItems = async () => {
     const response = await getMasterMenu(0, 1000)
     setMasterItems(response.content)
@@ -322,7 +333,7 @@ export function MenuView() {
           </button>
           {!showMasterOnly && <button onClick={() => setShowCart(true)}>Cart ({cartItemCount})</button>}
           <button onClick={openMasterManager}>Edit Master Menu</button>
-          <button onClick={() => setShowAddModal(true)}>Add to Working Menu</button>
+          <button onClick={openAddWorkingMenuModal}>Add to Working Menu</button>
           <button onClick={handleResetOffers} className="secondary">Reset Offers</button>
           <button onClick={handleResetWorking} className="danger">Reset Working Menu</button>
         </div>
@@ -424,7 +435,10 @@ export function MenuView() {
               </div>
               <div className="form-group">
                 <label>Subcategory</label>
-                <input type="text" value={newItem.subcategory || ''} onChange={e => setNewItem({...newItem, subcategory: e.target.value})} placeholder="Optional" />
+                <select value={newItem.subcategory || ''} onChange={e => setNewItem({...newItem, subcategory: e.target.value})}>
+                  <option value="">No subcategory</option>
+                  {masterSubcategoryOptions.map(subcategory => <option key={subcategory} value={subcategory}>{subcategory}</option>)}
+                </select>
               </div>
               <div className="form-group">
                 <label>Name</label>
