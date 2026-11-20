@@ -17,8 +17,8 @@ The connection string and password below are the dummy deployment values supplie
 | Component | Provider / URL | Notes |
 |---|---|---|
 | Frontend | `https://restaurant-demo.vercel.app` | React + TypeScript + Vite in `frontend`. |
-| Backend | `https://restaurant-demo.onrender.com` | Spring Boot API, deployed as a Docker web service. |
-| API base URL | `https://restaurant-demo.onrender.com/api/v1` | Configured in Vercel as `VITE_API_BASE_URL`. |
+| Backend | `https://restaurant-demo-5m96.onrender.com` | Spring Boot API, deployed as a Docker web service. |
+| API base URL | `https://restaurant-demo-5m96.onrender.com/api/v1` | Configure in Vercel as `VITE_API_BASE_URL`. |
 | Database | Neon PostgreSQL, database `restaurant_demo` | Flyway manages schema migrations. The connection details below are dummy values. |
 
 ### Neon database details (dummy)
@@ -92,7 +92,7 @@ Do not add a trailing slash or a path to this CORS value.
 4. In **Environment Variables**, set `VITE_API_BASE_URL` to:
 
    ```text
-   https://restaurant-demo.onrender.com/api/v1
+   https://restaurant-demo-5m96.onrender.com/api/v1
    ```
 
    Apply it to Production. Add Preview too if preview deployments should call the production backend.
@@ -109,7 +109,7 @@ The Render and Vercel projects are linked to the GitHub repository. A push to th
 2. If the database schema needs changes, add a new Flyway migration under `src/main/resources/db/migration`. Do not edit a migration that has already run in production; add the next migration instead.
 3. Commit and push the changes to the deployment branch in GitHub.
 4. In Render, open the backend service's **Events** or **Deploys** page and watch the build, deploy, and startup logs.
-5. Confirm the service is live and check an API endpoint, for example `https://restaurant-demo.onrender.com/api/v1/menu/current`.
+5. Confirm the service is live and check an API endpoint, for example `https://restaurant-demo-5m96.onrender.com/api/v1/menu/current`.
 
 If automatic deployment is disabled, use **Manual Deploy → Deploy latest commit** in Render. If only an environment variable changed, save it in **Environment** and manually deploy if Render does not redeploy automatically.
 
