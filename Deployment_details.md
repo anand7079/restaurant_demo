@@ -16,7 +16,7 @@ The connection string and password below are the dummy deployment values supplie
 
 | Component | Provider / URL | Notes |
 |---|---|---|
-| Frontend | `https://restaurant-demo.vercel.app` | React + TypeScript + Vite in `frontend`. |
+| Frontend | `https://restaurant-demo-eight-omega.vercel.app/menu` | React + TypeScript + Vite in `frontend`. |
 | Backend | `https://restaurant-demo-5m96.onrender.com` | Spring Boot API, deployed as a Docker web service. |
 | API base URL | `https://restaurant-demo-5m96.onrender.com/api/v1` | Configure in Vercel as `VITE_API_BASE_URL`. |
 | Database | Neon PostgreSQL, database `restaurant_demo` | Flyway manages schema migrations. The connection details below are dummy values. |
@@ -43,7 +43,7 @@ jdbc:postgresql://ep-withered-block-bkk15e7m-pooler.c-2.ap-southeast-2.aws.neon.
 The backend's `CORS_ALLOWED_ORIGINS` value must match the frontend's origin exactly:
 
 ```text
-https://restaurant-demo.vercel.app
+https://restaurant-demo-eight-omega.vercel.app
 ```
 
 Do not add a trailing slash or a path to this CORS value.
@@ -69,7 +69,7 @@ Do not add a trailing slash or a path to this CORS value.
    | `SPRING_DATASOURCE_URL` | JDBC-form Neon URL, e.g. `jdbc:postgresql://<direct-neon-host>:5432/restaurant_demo?sslmode=require` |
    | `SPRING_DATASOURCE_USERNAME` | Neon database role, currently `neondb_owner` |
    | `SPRING_DATASOURCE_PASSWORD` | Current Neon role password; enter in Render's secret field only |
-   | `CORS_ALLOWED_ORIGINS` | `https://restaurant-demo.vercel.app` |
+   | `CORS_ALLOWED_ORIGINS` | `https://restaurant-demo-eight-omega.vercel.app` |
 
    For the JDBC URL, start with the direct connection details shown by Neon and change the `postgresql://` scheme to `jdbc:postgresql://`. Keep `sslmode=require`. If the existing deployed connection is healthy, avoid changing it without a reason.
 
@@ -88,6 +88,8 @@ Do not add a trailing slash or a path to this CORS value.
    | Install command | `npm install` |
    | Build command | `npm run build` |
    | Output directory | `dist` |
+
+The `frontend/vercel.json` rewrite sends client-side routes such as `/menu` and `/orders` to `index.html`, so direct visits and browser refreshes load the React app.
 
 4. In **Environment Variables**, set `VITE_API_BASE_URL` to:
 
