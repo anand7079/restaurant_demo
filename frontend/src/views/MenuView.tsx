@@ -333,7 +333,7 @@ export function MenuView() {
           </button>
           {!showMasterOnly && <button onClick={() => setShowCart(true)}>Cart ({cartItemCount})</button>}
           <button onClick={openMasterManager}>Edit Master Menu</button>
-          <button onClick={openAddWorkingMenuModal}>Add to Working Menu</button>
+          <button onClick={openAddWorkingMenuModal}>Add to Current Menu</button>
           <button onClick={handleResetOffers} className="secondary">Reset Offers</button>
           <button onClick={handleResetWorking} className="danger">Reset Working Menu</button>
         </div>
@@ -424,7 +424,7 @@ export function MenuView() {
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>Add to Working Menu</h2>
+            <h2>Add to Current Menu</h2>
             <form onSubmit={handleAddItem}>
               <div className="form-group">
                 <label>Category</label>
