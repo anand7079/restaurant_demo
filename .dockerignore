@@ -1,0 +1,9 @@
+.git
+.idea
+.vscode
+.mvn
+target
+frontend
+output
+tmp
+*.log

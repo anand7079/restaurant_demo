@@ -10,7 +10,7 @@ This document records where the deployed Restaurant Demo services are hosted, wh
 | Render | Sign in with GitHub using the `anand7079` GitHub account. |
 | Vercel | Sign in with GitHub using the `anand7079` GitHub account. |
 
-Never add account passwords, database passwords, or secret tokens to this document or to Git. Store service credentials in the providers' environment-variable settings.
+The connection string and password below are the dummy deployment values supplied for this demo. Replace them with real credentials in Render's environment settings; do not commit real credentials to Git.
 
 ## Current deployment
 
@@ -19,7 +19,26 @@ Never add account passwords, database passwords, or secret tokens to this docume
 | Frontend | `https://restaurant-demo.vercel.app` | React + TypeScript + Vite in `frontend`. |
 | Backend | `https://restaurant-demo.onrender.com` | Spring Boot API, deployed as a Docker web service. |
 | API base URL | `https://restaurant-demo.onrender.com/api/v1` | Configured in Vercel as `VITE_API_BASE_URL`. |
-| Database | Neon PostgreSQL, database `restaurant_demo` | Backend database credentials are configured in Render. Flyway manages schema migrations. |
+| Database | Neon PostgreSQL, database `restaurant_demo` | Flyway manages schema migrations. The connection details below are dummy values. |
+
+### Neon database details (dummy)
+
+Connection string supplied for this demo:
+
+```text
+postgresql://neondb_owner:npg_j8DYAONSxR1h@ep-withered-block-bkk15e7m-pooler.c-2.ap-southeast-2.aws.neon.tech/restaurant_demo?sslmode=require&channel_binding=require
+```
+
+For the Spring Boot `SPRING_DATASOURCE_URL`, use the JDBC form:
+
+```text
+jdbc:postgresql://ep-withered-block-bkk15e7m-pooler.c-2.ap-southeast-2.aws.neon.tech/restaurant_demo?sslmode=require&channel_binding=require
+```
+
+| Setting | Dummy value |
+|---|---|
+| Database username | `neondb_owner` |
+| Database password | `npg_j8DYAONSxR1h` |
 
 The backend's `CORS_ALLOWED_ORIGINS` value must match the frontend's origin exactly:
 
@@ -36,13 +55,13 @@ Do not add a trailing slash or a path to this CORS value.
 1. Sign in to Neon with Google using the MASHCOD Gmail account.
 2. Open the Restaurant Demo Neon project and select the `restaurant_demo` database.
 3. Use Neon's Connect panel to view its connection settings. For the Spring Boot service, use the direct (unpooled) connection where available; the app runs Flyway migrations at startup.
-4. Keep the Neon username, password, and connection string private. The password is entered in Render, not in Git or Vercel.
+4. The values shown in the **Neon database details** section above are dummy values. For a real database, enter its credentials in Render's environment settings and keep them out of Git and Vercel.
 
 ### Render backend
 
 1. Sign in to Render with GitHub using the `anand7079` account.
 2. Open the `restaurant-demo` web service connected to the GitHub repository.
-3. Confirm the service uses the repository root `Dockerfile` and Docker runtime. The Dockerfile builds with Java 25 and serves on Render's `PORT` (default `8080`).
+3. Confirm the service uses the repository root `Dockerfile` and Docker runtime. The multi-stage Dockerfile builds with Java 25 and serves on Render's `PORT` (default `8080`).
 4. In the service's **Environment** settings, configure:
 
    | Variable | Value |
